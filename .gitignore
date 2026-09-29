@@ -1,0 +1,20 @@
+# Fichiers système
+.DS_Store
+Thumbs.db
+
+# Configuration locale et secrets
+.env
+.env.*
+!.env.example
+
+# Dépendances
+/vendor/
+/node_modules/
+
+# Journaux et fichiers temporaires
+*.log
+*.tmp
+
+# Paramètres locaux de l'éditeur
+.vscode/*
+!.vscode/extensions.json
