@@ -519,3 +519,24 @@ footer {
     text-decoration: none;
     font-weight: 600;
 }
+
+.disconnect-form{
+    width: auto !important;
+    margin: 20px auto !important;
+    padding: 0 !important;
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+
+}
+.disconnect-btn{
+    display: block;
+    appearance: none;
+    background: none;
+    color: red;
+    border: none;
+    width: fit-content;
+    margin-left: auto;
+    margin-right: auto;
+
+}

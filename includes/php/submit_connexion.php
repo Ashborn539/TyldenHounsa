@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 session_start();
-require_once __DIR__ . '/bd.php';
+require_once ('./bd.php');
 
 function redirectToLogin(string $message): void
 {
@@ -34,7 +34,7 @@ try {
          LIMIT 1'
     );
     $requete->execute(['email' => $email]);
-    $utilisateur = $requete->fetch(PDO::FETCH_ASSOC);
+    $utilisateur = $requete->fetch();
 } catch (PDOException $exception) {
     error_log($exception->getMessage());
     redirectToLogin('Une erreur est survenue. Veuillez réessayer.');

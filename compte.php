@@ -29,5 +29,8 @@ $prenomUtilisateur = htmlspecialchars(formatUserName((string) ($_SESSION['prenom
     <h1>Mon compte</h1>
     <p>Bienvenue <?php echo $prenomUtilisateur . ' ' . $nomUtilisateur; ?>.</p>
     <p><a class="back-btn-account" href="./index.php">Retour à l'accueil</a></p>
+    <form class="disconnect-form" action="./includes/php/disconnect.php" method="post" novalidate>
+        <button type="submit" class="disconnect-btn">Se deconncter</button>
+    </form>
 </body>
 </html>
