@@ -504,3 +504,18 @@ footer {
     font: inherit;
     font-weight: 600;
 }
+
+/* Page du compte  ------------------------------------------------------------*/
+
+.formulaire .back-btn-account {
+    display: inline-block;
+    text-align: center;
+    padding: 10px 14px;
+    margin: 50px auto 50px auto;
+    width: 100%;
+    border-radius: 6px;
+    background-color: var(--accent);
+    color: var(--text-on-accent);
+    text-decoration: none;
+    font-weight: 600;
+}

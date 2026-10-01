@@ -1,5 +1,5 @@
 <?php
-require_once './includes/php/bd.php';
+require_once ('./includes/php/bd.php');
 
 $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 $article = null;
@@ -13,7 +13,7 @@ if ($id !== false && $id !== null) {
     );
     $requete->execute([$id]);
     $article = $requete->fetch();
-} // else article reste null
+} // sinon article reste null
 
 if ($article) {
     $id = (int) $article['id_art'];

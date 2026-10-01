@@ -17,6 +17,7 @@ $error = $_GET['error'] ?? '';
     <?php if ($error !== ''): ?>
         <p class="form-error"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></p>
     <?php endif; ?>
+
     <form action="./includes/php/submit_formulaire.php" method="post">
         <p>
             <label for="nom">Nom:</label>

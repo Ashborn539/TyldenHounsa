@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-require_once ('/bd.php');
+require_once ('./bd.php');
 
 function redirectToRegistration(string $message): void
 {
