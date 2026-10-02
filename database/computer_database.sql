@@ -27,6 +27,7 @@ SET time_zone = "+00:00";
 -- Structure de la table `articles`
 --
 
+DROP TABLE IF EXISTS `Commandes`;
 DROP TABLE IF EXISTS `articles`;
 CREATE TABLE IF NOT EXISTS `articles` (
   `id_art` int NOT NULL AUTO_INCREMENT,
@@ -36,7 +37,7 @@ CREATE TABLE IF NOT EXISTS `articles` (
   `url_photo` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`id_art`)
-) ENGINE=MyISAM AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Structure de la table `user`
@@ -54,6 +55,25 @@ CREATE TABLE IF NOT EXISTS `user` (
   PRIMARY KEY (`id_user`),
   UNIQUE KEY `mail` (`mail`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `Commandes`
+--
+
+CREATE TABLE IF NOT EXISTS `Commandes` (
+  `id_commande` int NOT NULL AUTO_INCREMENT,
+  `id_art` int NOT NULL,
+  `id_client` int UNSIGNED NOT NULL,
+  `quantite` int NOT NULL,
+  `envoi` boolean NOT NULL DEFAULT FALSE,
+  PRIMARY KEY (`id_commande`),
+  KEY `idx_commandes_article` (`id_art`),
+  KEY `idx_commandes_client` (`id_client`),
+  CONSTRAINT `fk_commandes_article` FOREIGN KEY (`id_art`) REFERENCES `articles` (`id_art`),
+  CONSTRAINT `fk_commandes_client` FOREIGN KEY (`id_client`) REFERENCES `user` (`id_user`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 --

@@ -281,6 +281,14 @@ body {
     font-weight: bold;
 }
 
+.quantity.stock-ok {
+    color: var(--stock-ok);
+}
+
+.quantity.stock-not-ok {
+    color: var(--stock-not-ok);
+}
+
 .price {
     color: var(--text-main);
     font-size: 1.2rem;
@@ -511,7 +519,7 @@ footer {
     display: inline-block;
     text-align: center;
     padding: 10px 14px;
-    margin: 50px auto 50px auto;
+    margin: 50px auto 5px auto;
     width: 100%;
     border-radius: 6px;
     background-color: var(--accent);
@@ -539,4 +547,65 @@ footer {
     margin-left: auto;
     margin-right: auto;
 
+}
+
+.form-success {
+    width: min(100%, 520px);
+    margin: 0 auto 16px;
+    padding: 12px 14px;
+    border: 1px solid var(--stock-ok);
+    border-radius: 6px;
+    background-color: #eefaf3;
+    color: var(--stock-ok);
+    text-align: center;
+}
+
+.add-to-cart-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.add-to-cart-form input {
+    min-height: 38px;
+    padding: 8px;
+    border: 1px solid var(--border-subtile);
+    border-radius: 6px;
+    font: inherit;
+}
+
+.cart-total {
+    margin-top: 24px;
+    text-align: right;
+    font-size: 1.15rem;
+}
+
+.order-history {
+    width: min(1000px, calc(100% - 32px));
+    margin: 40px auto;
+    padding: 24px;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-subtile);
+    border-radius: 10px;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+.order-history table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.order-history th,
+.order-history td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-subtile);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.order-history th {
+    background-color: var(--bg-page);
 }

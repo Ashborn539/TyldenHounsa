@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirectToLogin('Veuillez utiliser le formulaire de connexion.');
 }
 
+// Les données d'authentification sont validées avant toute requête SQL.
 $email = trim((string) ($_POST['mail'] ?? ''));
 $motDePasse = (string) ($_POST['mdp'] ?? '');
 
@@ -28,7 +29,7 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 try {
     $bdd = getBD();
     $requete = $bdd->prepare(
-        'SELECT nom, prenom, mdp
+        'SELECT id_user, nom, prenom, mdp
          FROM `user`
          WHERE mail = :email
          LIMIT 1'
@@ -45,6 +46,8 @@ if (!$utilisateur || !password_verify($motDePasse, $utilisateur['mdp'])) {
 }
 
 session_regenerate_id(true);
+// L'identifiant client sert à rattacher le panier validé et l'historique au compte.
+$_SESSION['id_client'] = (int) $utilisateur['id_user'];
 $_SESSION['nom'] = $utilisateur['nom'];
 $_SESSION['prenom'] = $utilisateur['prenom'];
 

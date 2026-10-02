@@ -2,505 +2,205 @@
 
 ## 1. Vue d'ensemble
 
-Frames & cores est un site de vente de matériel informatique construit avec :
+Frames & cores est un site de vente de matériel informatique développé sans framework.
+Les pages PHP rendent les vues et traitent directement les formulaires. PDO centralise
+les échanges avec MySQL, tandis que les sessions PHP conservent l'identité du client et
+son panier entre deux requêtes.
 
-- **PHP** pour générer les pages et communiquer avec MySQL ;
-- **MySQL** pour stocker les articles et les utilisateurs ;
-- **HTML** pour structurer les pages ;
-- **CSS** pour la présentation et le responsive design ;
-- **JavaScript/jQuery** pour certains comportements côté navigateur ;
-- **Sessions PHP** pour conserver l'identité de l'utilisateur connecté.
+Technologies utilisées :
 
-L'application ne repose pas sur un framework. Chaque page PHP joue directement son rôle : afficher une page, traiter un formulaire ou interroger la base de données.
+- **PHP** pour le rendu serveur et la logique métier ;
+- **MySQL** pour les articles, les utilisateurs et les commandes ;
+- **PDO** pour les requêtes préparées et les transactions ;
+- **HTML/CSS** pour la structure et l'interface ;
+- **Sessions PHP** pour l'authentification et le panier.
+
+Les commentaires placés dans les blocs PHP sont traités côté serveur. Ils documentent
+le code source et ne sont donc pas envoyés dans le HTML généré.
 
 ## 2. Arborescence
 
 ```text
 TyldenHounsa/
-|-- index.php                         Accueil et catalogue des articles
-|-- article.php                       Fiche détaillée d'un article
+|-- index.php                         Catalogue et accueil
+|-- article.php                       Fiche et ajout au panier
+|-- panier.php                        Consultation et validation du panier
+|-- acheter.php                       Enregistrement d'une commande
+|-- historique.php                    Historique du client connecté
+|-- compte.php                        Espace du client
 |-- connexion.php                     Formulaire de connexion
 |-- nouveau.php                       Formulaire de création de compte
-|-- panier.php                        Page du panier
-|-- contact.html                      Page de présentation et de contact
-|-- ARCHITECTURE.md                   Documentation de l'architecture
+|-- contact.html                      Page statique de contact
+|-- ARCHITECTURE.md                   Documentation technique
 |
 |-- assets/
-|   |-- css/
-|   |   `-- style.css                 Feuille de style commune
-|   |-- js/
-|   |   |-- main.js                   Navigation vers une fiche article
-|   |   `-- panier.js                  Script prévu pour le panier
-|   `-- images/                        Images des produits et du profil
+|   |-- css/style.css                 Feuille de style commune
+|   |-- js/main.js                    Fichier conservé, sans logique active
+|   |-- js/panier.js                  Fichier réservé aux évolutions du panier
+|   `-- images/                        Images des produits
 |
-|-- includes/
-|   |-- php/
-|   |   `-- bd.php                     Fonction de connexion à MySQL
-|   |-- php/
-|   |   |-- submit_formulaire.php      Traitement de l'inscription
-|   |   `-- submit_connexion.php       Traitement de la connexion
+|-- includes/php/
+|   |-- bd.php                        Connexion PDO à MySQL
+|   |-- submit_connexion.php          Traitement de la connexion
+|   |-- submit_formulaire.php         Traitement de l'inscription
+|   `-- disconnect.php                Fermeture de session
 |
 `-- database/
-    `-- computer_database.sql          Structure et données initiales
+    `-- computer_database.sql         Schéma et données initiales
 ```
 
-## 3. Diagramme général
+## 3. Flux applicatif
 
 ```mermaid
 flowchart TD
-    Visiteur[Visiteur]
-    Accueil[index.php]
-    Fiche[article.php?id=id]
-    Inscription[nouveau.php]
-    Connexion[connexion.php]
+    Catalogue[index.php]
+    Fiche[article.php]
     Panier[panier.php]
-    Contact[contact.html]
-    MainJS[assets/js/main.js]
-    PanierJS[assets/js/panier.js]
-    SubmitInscription[includes/php/submit_formulaire.php]
-    SubmitConnexion[includes/php/submit_connexion.php]
-    BDConnexion[includes/php/bd.php]
-    MySQL[(MySQL computer_database)]
+    Achat[acheter.php]
+    Historique[historique.php]
+    Compte[compte.php]
+    Connexion[connexion.php]
+    Inscription[nouveau.php]
     Session[(Session PHP)]
-    CSS[assets/css/style.css]
+    Base[(MySQL)]
 
-    Visiteur --> Accueil
-    Visiteur --> Inscription
-    Visiteur --> Connexion
-    Visiteur --> Panier
-    Visiteur --> Contact
-    Accueil --> MainJS
-    Panier --> PanierJS
-    Accueil --> Fiche
-    Inscription --> SubmitInscription
-    Connexion --> SubmitConnexion
-    SubmitInscription --> BDConnexion
-    SubmitConnexion --> BDConnexion
-    Accueil --> BDConnexion
-    Fiche --> BDConnexion
-    BDConnexion --> MySQL
-    SubmitInscription --> Session
-    SubmitConnexion --> Session
-    Session --> Accueil
-    Accueil --> CSS
-    Fiche --> CSS
-    Inscription --> CSS
-    Connexion --> CSS
-    Panier --> CSS
-    Contact --> CSS
+    Catalogue -->|POST id_art| Fiche
+    Fiche -->|POST article et quantite| Session
+    Session --> Panier
+    Panier -->|Validation| Achat
+    Achat -->|INSERT Commandes et UPDATE articles| Base
+    Achat -->|unset panier après succès| Session
+    Compte --> Historique
+    Historique -->|SELECT filtré par id_client| Base
+    Connexion -->|POST| Session
+    Inscription -->|POST| Session
+    Catalogue -->|SELECT articles| Base
+    Fiche -->|SELECT article| Base
 ```
 
-## 4. Parcours principal de l'utilisateur
+## 4. Parcours du catalogue et du panier
 
-```mermaid
-sequenceDiagram
-    participant U as Utilisateur
-    participant I as index.php
-    participant J as main.js
-    participant A as article.php
-    participant F as formulaire PHP
-    participant B as bd.php
-    participant DB as MySQL
-    participant S as Session PHP
+### Catalogue
 
-    U->>I: Ouvre le catalogue
-    I->>B: Connexion et SELECT des articles
-    B->>DB: Requête sur articles
-    DB-->>B: Lignes articles
-    B-->>I: Données des cartes
-    I-->>U: Affiche les cartes
+`index.php` démarre la session, charge les articles depuis la table `articles` et
+échappe les valeurs avant leur insertion dans le HTML. Chaque carte contient un
+formulaire `POST` vers `article.php` avec le champ caché `id_art`.
 
-    U->>I: Clique sur une carte
-    I->>J: Événement click
-    J->>A: Redirection vers article.php?id=...
-    A->>B: Connexion et SELECT par id_art
-    B->>DB: Recherche de l'article
-    DB-->>B: Article demandé
-    B-->>A: Données de la fiche
-    A-->>U: Affiche image, nom, description et prix
+La fiche n'est donc plus ouverte par une redirection JavaScript ou par un identifiant
+placé dans l'URL.
 
-    U->>F: Envoie inscription ou connexion
-    F->>B: Demande une connexion PDO
-    B->>DB: INSERT ou SELECT utilisateur
-    DB-->>B: Résultat
-    F->>S: Enregistre nom et prénom
-    F-->>U: Redirige vers index.php
-```
+### Fiche article
 
-## 5. Description détaillée des fichiers
+`article.php` récupère `id_art` depuis `$_POST`, puis recherche l'article avec une
+requête préparée. Le formulaire d'ajout renvoie l'identifiant, l'action et la quantité.
 
-### `index.php`
+Avant d'écrire dans la session, le serveur :
 
-C'est la page d'accueil et le catalogue.
+1. vérifie que la quantité est un entier positif ;
+2. vérifie l'existence de l'article ;
+3. limite la quantité au stock courant ;
+4. additionne la quantité à celle déjà présente pour l'article.
 
-#### Initialisation de session
+Le panier utilise la structure suivante :
 
 ```php
-session_start();
+$_SESSION['panier'][id_art] = quantite;
 ```
 
-La session permet de récupérer le nom et le prénom d'un utilisateur inscrit ou connecté.
+### Panier
 
-Les valeurs sont ensuite échappées avec `htmlspecialchars()` avant d'être affichées dans le HTML. Le formatage du nom utilise `mb_strtolower()`, `mb_substr()` et `mb_strtoupper()` afin de gérer les caractères accentués.
+`panier.php` relit les informations des articles depuis MySQL. La session ne contient
+que les identifiants et les quantités ; elle ne fait pas autorité pour les prix ou le
+stock. La page calcule chaque sous-total ainsi que le total général.
 
-#### Navigation
+Le bouton de suppression est traité par `panier.php` en `POST`. Il utilise
+`unset($_SESSION['panier'])`, puis redirige vers la même page.
 
-Le bloc `.header-nav` contient les liens principaux :
+## 5. Authentification et sessions
 
-- accueil : `index.php` ;
-- présentation : `contact.html` ;
-- compte : `connexion.php` ;
-- panier : `panier.php`.
-
-Chaque lien contient une icône SVG.
-
-#### Lecture des articles
-
-Le fichier charge la connexion commune :
+`submit_connexion.php` recherche l'utilisateur par e-mail et vérifie le mot de passe
+avec `password_verify()`. Après une connexion réussie, l'identifiant est conservé avec
+les informations d'affichage :
 
 ```php
-require_once('./includes/php/bd.php');
+$_SESSION['id_client'] = $utilisateur['id_user'];
+$_SESSION['nom'] = $utilisateur['nom'];
+$_SESSION['prenom'] = $utilisateur['prenom'];
 ```
 
-Puis il exécute une requête SQL :
+`submit_formulaire.php` crée le compte avec `password_hash()`, récupère l'identifiant
+généré par MySQL et initialise les mêmes valeurs de session.
 
-```sql
-SELECT id_art, nom, quantite, prix, url_photo, description
-FROM articles
-ORDER BY id_art
-```
+`compte.php` est accessible uniquement lorsque le nom et le prénom sont présents dans
+la session. Le lien vers `historique.php` permet au client de consulter ses commandes.
 
-La boucle `foreach` transforme chaque ligne de la base en carte HTML.
+## 6. Enregistrement d'une commande
 
-Les données textuelles sont protégées avec `htmlspecialchars()`. Le prix est formaté avec `number_format()`.
+`acheter.php` exige un `id_client` valide et un panier non vide. Le traitement utilise
+une transaction PDO :
 
-#### Lien vers une fiche article
+1. les lignes d'articles sont verrouillées avec `SELECT ... FOR UPDATE` ;
+2. le stock courant est comparé à la quantité demandée ;
+3. chaque article est inséré dans `Commandes` avec `envoi = FALSE` ;
+4. le stock est décrémenté dans `articles` ;
+5. la transaction est validée avec `commit()` ;
+6. le panier est supprimé avec `unset()` uniquement après cette validation.
 
-Chaque carte possède un attribut `data-url` :
+En cas d'erreur, `rollBack()` annule les écritures réalisées pendant la transaction et
+le panier reste disponible pour une nouvelle tentative.
 
-```html
-<div class="card" data-url="article.php?id=3">
-```
+## 7. Historique des commandes
 
-Cet attribut est lu par `main.js` lorsqu'une carte est cliquée.
+`historique.php` est réservé au client connecté. Sa requête filtre les lignes avec
+`c.id_client = :id_client` et joint `articles` pour afficher le nom et le prix du
+produit.
 
-### `article.php`
+Le tableau présente :
 
-Cette page affiche le détail d'un produit sélectionné.
+- l'identifiant de commande ;
+- l'article commandé ;
+- la quantité ;
+- le total de la ligne ;
+- l'état d'envoi.
 
-#### Récupération de l'identifiant
+La colonne `envoi` vaut `FALSE` lors de l'achat et peut être passée manuellement à
+`TRUE` par le gestionnaire.
 
-```php
-$id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
-```
+## 8. Base de données
 
-L'identifiant vient de l'URL :
+Le script `database/computer_database.sql` crée les tables `articles`, `user` et
+`Commandes`. Les tables utilisant des relations sont en `InnoDB`.
 
-```text
-article.php?id=3
-```
-
-`FILTER_VALIDATE_INT` vérifie que l'identifiant est un entier.
-
-#### Recherche SQL
-
-Une requête préparée recherche l'article correspondant :
-
-```sql
-SELECT id_art, nom, quantite, prix, url_photo, description
-FROM articles
-WHERE id_art = :id
-```
-
-Le paramètre nommé `:id` évite de concaténer directement une valeur fournie par l'utilisateur dans la requête SQL.
-
-#### Affichage
-
-La fiche affiche :
-
-- l'image ;
-- la référence ;
-- le nom ;
-- la description ;
-- la quantité disponible ;
-- le prix ;
-- un lien de retour vers `index.php`.
-
-La page possède aussi une branche `else` pour afficher « Article introuvable » lorsque l'article n'existe pas.
-
-### `connexion.php`
-
-Cette page contient le formulaire de connexion.
-
-Elle demande :
-
-- l'adresse e-mail ;
-- le mot de passe.
-
-Le formulaire envoie ses données vers :
-
-```html
-<form action="./includes/php/submit_connexion.php" method="post">
-```
-
-Si une erreur est transmise dans l'URL avec le paramètre `error`, elle est affichée dans un bloc `.form-error`.
-
-### `includes/php/submit_connexion.php`
-
-Ce fichier ne produit pas une page complète. C'est un contrôleur de formulaire.
-
-Son fonctionnement est le suivant :
-
-1. démarrage de la session ;
-2. chargement de `bd.php` ;
-3. vérification que la requête est bien en `POST` ;
-4. récupération et nettoyage de l'e-mail et du mot de passe ;
-5. validation de l'e-mail ;
-6. recherche de l'utilisateur dans la table `user` ;
-7. vérification du mot de passe avec `password_verify()` ;
-8. régénération de l'identifiant de session ;
-9. stockage du nom et du prénom dans `$_SESSION` ;
-10. redirection vers `index.php`.
-
-En cas d'erreur, la fonction `redirectToLogin()` renvoie l'utilisateur vers :
-
-```text
-connexion.php?error=...
-```
-
-### `nouveau.php`
-
-Cette page contient le formulaire de création de compte.
-
-Elle demande :
-
-- le nom ;
-- le prénom ;
-- l'adresse ;
-- le téléphone ;
-- l'adresse e-mail ;
-- le mot de passe ;
-- la confirmation du mot de passe.
-
-Le formulaire utilise les noms attendus par le traitement PHP :
-
-| Champ | Attribut `name` | Utilisation |
-|---|---|---|
-| Nom | `n` | `$_POST['n']` |
-| Prénom | `p` | `$_POST['p']` |
-| Adresse | `adr` | `$_POST['adr']` |
-| Téléphone | `num` | `$_POST['num']` |
-| E-mail | `mail` | `$_POST['mail']` |
-| Mot de passe | `mdp1` | `$_POST['mdp1']` |
-| Confirmation | `mdp2` | `$_POST['mdp2']` |
-
-### `includes/php/submit_formulaire.php`
-
-Ce fichier traite l'inscription.
-
-Il vérifie :
-
-- que la méthode HTTP est `POST` ;
-- que tous les champs sont remplis ;
-- que l'e-mail est valide ;
-- que le mot de passe contient au moins huit caractères ;
-- que les deux mots de passe correspondent.
-
-Le mot de passe n'est jamais enregistré en clair. Il est transformé avec :
-
-```php
-password_hash($motDePasse, PASSWORD_DEFAULT)
-```
-
-L'insertion est réalisée avec une requête préparée dans la table `user`.
-
-En cas de réussite :
-
-```php
-$_SESSION['nom'] = $nom;
-$_SESSION['prenom'] = $prenom;
-header('Location: ../../index.php');
-```
-
-En cas d'erreur, l'utilisateur revient vers `nouveau.php` avec un message dans le paramètre `error`.
-
-### `includes/php/bd.php`
-
-Ce fichier centralise la connexion à MySQL :
-
-```php
-function getBD()
-{
-    $bdd = new PDO(
-        'mysql:host=localhost;dbname=computer_database;charset=utf8',
-        'root',
-        ''
-    );
-
-    $bdd->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    return $bdd;
-}
-```
-
-Le mode `PDO::ERRMODE_EXCEPTION` permet de faire remonter les erreurs SQL sous forme d'exceptions, qui peuvent ensuite être traitées dans les blocs `try/catch`.
-
-### `contact.html`
-
-Page statique de présentation du concepteur du site.
-
-Elle utilise :
-
-- `style.css` pour la mise en page ;
-- les classes `.contact-page`, `.contact-card`, `.contact-section` et `.back-btn` ;
-- un lien e-mail avec `mailto:` ;
-- un bouton de retour vers l'accueil.
-
-Elle ne communique pas avec la base de données.
-
-### `panier.php`
-
-Cette page affiche la structure visuelle du panier :
-
-- un message lorsque le panier est vide ;
-- une zone `.cart-items` pour les articles ;
-- un lien pour continuer les achats ;
-- un bouton pour vider le panier.
-
-Elle charge `assets/js/panier.js`, mais ce fichier est actuellement vide dans l'état présent du projet. La page constitue donc principalement la structure HTML et CSS du panier.
-
-### `assets/js/main.js`
-
-Ce script utilise jQuery :
-
-```javascript
-$(document).ready(function() {
-    $('.card').on('click', function(event) {
-        if ($(event.target).closest('.btn-add-cart').length > 0) {
-            return;
-        }
-        window.location.href = $(this).data('url');
-    });
-});
-```
-
-Fonctionnement :
-
-1. attendre que le DOM soit chargé ;
-2. sélectionner les éléments `.card` ;
-3. écouter leur événement `click` ;
-4. ignorer le clic sur le bouton « Ajouter au panier » ;
-5. rediriger les autres clics vers l'URL contenue dans `data-url`.
-
-La page `index.php` charge jQuery depuis un CDN avant `main.js`.
-
-### `assets/js/panier.js`
-
-Le fichier est prévu pour gérer le panier côté navigateur, mais il est actuellement vide. Il pourra plus tard :
-
-- lire le panier dans `localStorage` ;
-- afficher les articles dans `.cart-items` ;
-- modifier les quantités ;
-- calculer un total ;
-- supprimer un article ;
-- vider le panier.
-
-### `assets/css/style.css`
-
-La feuille de style est partagée par les pages du projet.
-
-Elle contient notamment :
-
-- les variables de couleurs dans `:root` ;
-- les styles généraux et la remise à zéro CSS ;
-- la navigation `.header-nav` et `.nav-btn` ;
-- la grille `.products-container` ;
-- les cartes `.card` ;
-- les formulaires `.formulaire` ;
-- les messages `.form-error` ;
-- la fiche `.product-detail` ;
-- le panier `.cart-container` ;
-- la page de contact ;
-- les règles responsive avec `@media`.
-
-La grille du catalogue utilise :
-
-```css
-grid-template-columns: repeat(auto-fit, minmax(180px, 230px));
-```
-
-Cela permet aux cartes de s'adapter à la largeur disponible.
-
-### `database/computer_database.sql`
-
-Ce fichier contient le script d'initialisation de la base `computer_database`.
-
-La table `articles` contient actuellement :
+Structure de `Commandes` :
 
 | Colonne | Rôle |
 |---|---|
-| `id_art` | Identifiant automatique |
-| `nom` | Nom du produit |
-| `quantite` | Stock disponible |
-| `prix` | Prix du produit |
-| `url_photo` | Chemin vers l'image |
-| `description` | Description détaillée |
+| `id_commande` | Identifiant auto-incrémenté de la ligne commandée |
+| `id_art` | Article commandé et clé étrangère vers `articles` |
+| `id_client` | Client et clé étrangère vers `user` |
+| `quantite` | Quantité commandée |
+| `envoi` | État d'envoi, `FALSE` par défaut |
 
-Le traitement des inscriptions utilise également une table `user` avec au minimum les colonnes :
+Chaque article d'un panier est enregistré sur une ligne distincte. La structure
+conserve ainsi tous les champs demandés tout en permettant une commande composée de
+plusieurs articles.
 
-- `nom` ;
-- `prenom` ;
-- `adr` ;
-- `num` ;
-- `mail` ;
-- `mdp`.
+## 9. Sécurité et intégrité
 
-## 6. Sécurité utilisée
+- Les requêtes utilisent des paramètres PDO afin d'éviter la concaténation de valeurs
+  fournies par l'utilisateur.
+- Les valeurs affichées sont échappées avec `htmlspecialchars()`.
+- Les mots de passe sont hachés avec `password_hash()` et vérifiés avec
+  `password_verify()`.
+- L'identifiant de session est régénéré après une connexion réussie.
+- Les quantités et les identifiants sont validés côté serveur.
+- La transaction de commande protège la cohérence entre `Commandes` et `articles`.
+- Les données de la page d'historique sont filtrées par le client connecté.
 
-Le projet utilise plusieurs mécanismes utiles :
+## 10. Évolutions possibles
 
-- requêtes préparées PDO contre les injections SQL ;
-- `htmlspecialchars()` contre l'injection de HTML dans les données affichées ;
-- `password_hash()` pour enregistrer les mots de passe ;
-- `password_verify()` pour les contrôler lors de la connexion ;
-- `session_regenerate_id(true)` après une connexion réussie ;
-- validation côté serveur, même si les champs HTML possèdent déjà `required`.
-
-La validation HTML seule ne suffit pas, car elle peut être contournée. Le PHP doit donc toujours vérifier les données reçues.
-
-## 7. Points d'attention actuels
-
-Les éléments suivants méritent une vérification ou une amélioration future :
-
-1. `article.php` doit tester que `$article` existe avant d'accéder à ses champs. Dans sa version actuelle, les lignes qui extraient `id_art`, `nom` et les autres valeurs sont placées avant la branche `if ($article)`. Une URL avec un identifiant invalide peut donc provoquer une erreur avant l'affichage du message « Article introuvable ».
-2. `panier.js` est vide : le bouton « Ajouter au panier » et l'affichage du panier doivent être reliés pour obtenir un panier complet.
-3. Le fichier SQL fourni décrit principalement `articles`. La table `user` doit également être créée avant de tester l'inscription et la connexion.
-4. Le lien du panier doit pointer vers le nom de page réellement utilisé dans le projet (`panier.php`).
-5. Les identifiants et mots de passe de base de données sont actuellement écrits dans `bd.php`. En production, ils devraient être placés dans une configuration protégée par des variables d'environnement.
-
-## 8. Résumé du fonctionnement
-
-```text
-Accueil
-  |
-  +--> Liste les articles depuis MySQL
-  |
-  +--> Clic sur une carte --> article.php?id=...
-  |
-  +--> Compte --> connexion.php
-  |                  |
-  |                  +--> submit_connexion.php
-  |                         |
-  |                         +--> Vérifie user dans MySQL
-  |                         +--> Crée la session
-  |                         +--> Retourne vers index.php
-  |
-  +--> Créer un compte --> nouveau.php
-                             |
-                             +--> submit_formulaire.php
-                                    |
-                                    +--> Valide les champs
-                                    +--> Hash le mot de passe
-                                    +--> Insère dans user
-                                    +--> Crée la session
-                                    +--> Retourne vers index.php
-```
+- déplacer les identifiants MySQL de `bd.php` vers des variables d'environnement ;
+- ajouter une gestion dédiée des lignes d'une même commande si un identifiant de
+  commande commun doit être affiché pour plusieurs articles ;
+- ajouter des tests automatisés pour le panier, le stock et la transaction ;
+- ajouter une interface d'administration pour modifier `envoi`.

@@ -1,7 +1,7 @@
 <?php
     session_start();
 
-    function formatUserName(string $name): string
+    function formatUserName(string $name): string // Normalise l'affichage du nom utilisateur.
     {
         $name = mb_strtolower(trim($name), 'UTF-8');
         return mb_strtoupper(mb_substr($name, 0, 1, 'UTF-8'), 'UTF-8')
@@ -27,7 +27,7 @@
 <body>
     <h1 id="title">Frames & cores</h1>
 
-    <?php if ($nomUtilisateur !== '' && $prenomUtilisateur !== ''): ?>
+    <?php if ($nomUtilisateur !== '' && $prenomUtilisateur !== ''): // Affiche l'accueil personnalisé si la session est authentifiée. ?>
         <p class="welcome-message">Bienvenue <?php echo $prenomUtilisateur . ' ' . $nomUtilisateur; ?>.</p>
     <?php endif; ?>
 
@@ -39,8 +39,7 @@
     </div>
 
     <div class="products-container">
-        <!-- Section qui contient les articles -->
-        
+
         <?php require_once('./includes/php/bd.php');
         $bdd = getBD();
         $rep = $bdd -> query(
@@ -51,7 +50,7 @@
 
         $articles = $rep->fetchAll();
 
-        foreach ($articles as $article):
+        foreach ($articles as $article): // Prépare les données avant leur rendu dans la carte.
             $id = (int) $article["id_art"];
             $nom = htmlspecialchars($article['nom'], ENT_QUOTES, 'UTF-8');
             $description = htmlspecialchars($article['description'], ENT_QUOTES, 'UTF-8');
@@ -59,17 +58,20 @@
             $quantite = (int) $article['quantite'];
             $prix = number_format((float) $article['prix'], 2, ',', ' ');
         ?>
-            <div class="card" data-url="article.php?id=<?php echo $id ?>">
+            <div class="card">
                 <div class="card-image">
                     <img src="<?php echo $urlPhoto ?>" alt="<?php echo $nom ?>" loading="lazy">
                 </div>
                 <div class="card-info">
                     <p class="product-id">Référence : PC-<?php echo $id ?></p>
                     <h2><?php echo $nom ?></h2>
-                    <p class="description"><?php echo $description ?></p>
-                    <p class="quantity">Quantité disponible : <?php echo $quantite ?></p>
+                    <?php $stockClass = $quantite === 0 ? 'stock-not-ok' : 'stock-ok'; ?>
+                    <p class="quantity <?php echo $stockClass; ?> ">Quantité disponible : <?php echo $quantite ?></p>
                     <strong class="price"><?php echo $prix ?> €</strong>
-                    <button class="btn-add-cart" data-name="<?php echo $nom ?>">Ajouter au panier</button>
+                    <form action="article.php" method="post">
+                        <input type="hidden" name="id_art" value="<?php echo $id; ?>">
+                        <button class="btn-add-cart" type="submit">Voir article</button>
+                    </form>
                 </div>
             </div>
         <?php endforeach; ?>

@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirectToRegistration('Veuillez utiliser le formulaire d’inscription.');
 }
 
+// Les valeurs reçues sont normalisées avant les contrôles métier.
 $nom = trim((string) ($_POST['n'] ?? ''));
 $prenom = trim((string) ($_POST['p'] ?? ''));
 $adresse = trim((string) ($_POST['adr'] ?? ''));
@@ -57,6 +58,9 @@ try {
     redirectToRegistration('Impossible de créer le compte. Vérifiez votre adresse e-mail.');
 }
 
+// Le nouvel identifiant permet d'associer immédiatement le compte à sa session.
+$idClient = (int) $bdd->lastInsertId();
+$_SESSION['id_client'] = $idClient;
 $_SESSION['nom'] = $nom;
 $_SESSION['prenom'] = $prenom;
 
