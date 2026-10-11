@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once ('./includes/php/bd.php');
+require_once ('./includes/php/csrf.php');
 
 $erreur = '';
 $commandeEnregistree = false;
@@ -17,6 +18,9 @@ if ($panier === []) {
     header('Location: panier.php');
     exit;
 }
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireValidCsrfToken();
 
 try {
     // Les lignes de stock sont verrouillées jusqu'à la fin de la transaction.
@@ -39,10 +43,10 @@ try {
          WHERE id_art = :id_art'
     );
 
-    foreach ($panier as $idArt => $quantitePanier) {
-        $idArt = (int) $idArt;
+    foreach ($panier as $idArtKey => $quantitePanier) {
+        $idArt = filter_var($idArtKey, FILTER_VALIDATE_INT);
         $quantite = filter_var($quantitePanier, FILTER_VALIDATE_INT);
-        if ($idArt < 1 || $quantite === false || $quantite < 1) {
+        if ($idArt === false || $idArt < 0 || $quantite === false || $quantite < 1) {
             throw new RuntimeException('Le panier contient une quantité invalide.');
         }
 
@@ -75,6 +79,9 @@ try {
     error_log($exception->getMessage());
     $erreur = 'La commande n’a pas pu être enregistrée. Veuillez réessayer.';
 }
+}
+
+$csrfToken = csrfToken();
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -90,6 +97,13 @@ try {
     <?php if ($commandeEnregistree): ?>
         <p class="form-success">Votre commande a bien été enregistrée.</p>
         <p class="formulaire-link"><a href="./index.php">Retour à l'accueil</a></p>
+    <?php elseif ($_SERVER['REQUEST_METHOD'] !== 'POST'): ?>
+        <p>Confirmez votre commande pour la valider.</p>
+        <form action="acheter.php" method="post">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+            <button type="submit" class="btn">Confirmer la commande</button>
+        </form>
+        <p class="formulaire-link"><a href="./panier.php">Retour au panier</a></p>
     <?php else: ?>
         <p class="form-error"><?php echo htmlspecialchars($erreur, ENT_QUOTES, 'UTF-8'); ?></p>
         <p class="formulaire-link"><a href="./panier.php">Retour au panier</a></p>

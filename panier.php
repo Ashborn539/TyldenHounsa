@@ -1,15 +1,18 @@
 <?php
 session_start();
 require_once ('./includes/php/bd.php');
+require_once ('./includes/php/csrf.php');
 
 // La suppression est traitée côté serveur afin de rester cohérente avec la session.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['vider_panier'])) {
+    requireValidCsrfToken();
     unset($_SESSION['panier']);
     header('Location: panier.php');
     exit;
 }
 
 $panier = $_SESSION['panier'] ?? [];
+$csrfToken = csrfToken();
 $articles = [];
 $total = 0.0;
 
@@ -79,6 +82,7 @@ if ($panier !== []) {
             <?php if ($articles !== []): ?>
                 <a class="back-to-products" href="./acheter.php">Valider la commande</a>
                 <form action="panier.php" method="post">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <button class="clear-cart" type="submit" name="vider_panier">Vider le panier</button>
                 </form>
             <?php endif; ?>

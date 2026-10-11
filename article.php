@@ -1,20 +1,18 @@
 <?php
 session_start();
 require_once ('./includes/php/bd.php');
+require_once ('./includes/php/csrf.php');
 
 $id = filter_input(INPUT_POST, 'id_art', FILTER_VALIDATE_INT);
 $action = filter_input(INPUT_POST, 'action', FILTER_UNSAFE_RAW);
 $article = null;
 
-// Une action d'ajout nécessite une quantité entière strictement positive.
-if ($action === 'add_to_cart') {
-    $requestedQuantity = filter_input(INPUT_POST, 'quantite', FILTER_VALIDATE_INT);
-    if ($requestedQuantity === false || $requestedQuantity === null || $requestedQuantity < 1) {
-        header('Location: article.php');
-        exit;
-    }
+// Toutes les requêtes POST de cette page proviennent d'un formulaire protégé.
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireValidCsrfToken();
 }
 
+// Recherche commune à la consultation et à l'ajout au panier.
 if ($id !== false && $id !== null) {
     $bdd = getBD();
     $requete = $bdd->prepare(
@@ -26,8 +24,14 @@ if ($id !== false && $id !== null) {
     $article = $requete->fetch();
 } // Un identifiant absent ou invalide laisse la fiche vide.
 
-// Le stock est contrôlé avant d'enregistrer la quantité dans la session.
-if ($article && $action === 'add_to_cart') {
+// Les contrôles de quantité et de stock ne concernent que l'ajout au panier.
+if (isset($article) && $action === 'add_to_cart') {
+    $requestedQuantity = filter_input(INPUT_POST, 'quantite', FILTER_VALIDATE_INT);
+    if ($requestedQuantity === false || $requestedQuantity === null || $requestedQuantity < 1) {
+        header('Location: article.php');
+        exit;
+    }
+
     if ($requestedQuantity > (int) $article['quantite']) {
         $requestedQuantity = (int) $article['quantite'];
     }
@@ -42,7 +46,8 @@ if ($article && $action === 'add_to_cart') {
     exit;
 }
 
-if ($article) {
+if (isset($article)) {
+    $csrfToken = csrfToken();
     $id = (int) $article['id_art'];
     $nom = htmlspecialchars($article['nom'], ENT_QUOTES, 'UTF-8');
     $description = htmlspecialchars($article['description'], ENT_QUOTES, 'UTF-8');
@@ -81,6 +86,7 @@ if ($article) {
                 <strong class="price"><?php echo $prix; ?> €</strong>
                 <?php if ($quantite !== 0): // Si l'article est disponible  ?>
                     <form class="add-to-cart-form" action="article.php" method="post">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                         <input type="hidden" name="id_art" value="<?php echo $id; ?>">
                         <input type="hidden" name="action" value="add_to_cart">
                         <label for="quantite">Quantité :</label>

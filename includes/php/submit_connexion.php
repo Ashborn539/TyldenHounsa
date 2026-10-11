@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 session_start();
 require_once ('./bd.php');
+require_once ('./csrf.php');
 
 function redirectToLogin(string $message): void
 {
@@ -13,6 +14,8 @@ function redirectToLogin(string $message): void
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirectToLogin('Veuillez utiliser le formulaire de connexion.');
 }
+
+requireValidCsrfToken();
 
 // Les données d'authentification sont validées avant toute requête SQL.
 $email = trim((string) ($_POST['mail'] ?? ''));

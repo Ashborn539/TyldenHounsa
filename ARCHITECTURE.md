@@ -41,6 +41,7 @@ TyldenHounsa/
 |
 |-- includes/php/
 |   |-- bd.php                        Connexion PDO à MySQL
+|   |-- csrf.php                      Génération et validation des tokens CSRF
 |   |-- submit_connexion.php          Traitement de la connexion
 |   |-- submit_formulaire.php         Traitement de l'inscription
 |   `-- disconnect.php                Fermeture de session
@@ -67,7 +68,8 @@ flowchart TD
     Catalogue -->|POST id_art| Fiche
     Fiche -->|POST article et quantite| Session
     Session --> Panier
-    Panier -->|Validation| Achat
+    Panier -->|GET page de confirmation| Achat
+    Achat -->|POST avec token CSRF| Achat
     Achat -->|INSERT Commandes et UPDATE articles| Base
     Achat -->|unset panier après succès| Session
     Compte --> Historique
@@ -84,7 +86,8 @@ flowchart TD
 
 `index.php` démarre la session, charge les articles depuis la table `articles` et
 échappe les valeurs avant leur insertion dans le HTML. Chaque carte contient un
-formulaire `POST` vers `article.php` avec le champ caché `id_art`.
+formulaire `POST` vers `article.php` avec les champs cachés `id_art` et
+`csrf_token`.
 
 La fiche n'est donc plus ouverte par une redirection JavaScript ou par un identifiant
 placé dans l'URL.
@@ -134,10 +137,25 @@ généré par MySQL et initialise les mêmes valeurs de session.
 `compte.php` est accessible uniquement lorsque le nom et le prénom sont présents dans
 la session. Le lien vers `historique.php` permet au client de consulter ses commandes.
 
-## 6. Enregistrement d'une commande
+## 6. Protection CSRF
 
-`acheter.php` exige un `id_client` valide et un panier non vide. Le traitement utilise
-une transaction PDO :
+`includes/php/csrf.php` centralise la protection contre les requêtes intersites.
+Les pages contenant une action génèrent un token aléatoire, placé dans le champ
+caché `csrf_token` de leur formulaire. Le serveur vérifie ce token avant toute
+modification de session ou de base de données.
+
+La session conserve au maximum deux tokens valides. Lorsqu'un troisième token est
+généré, le plus ancien est supprimé ; une page utilisant ce token reçoit alors une
+réponse HTTP `403`. Les actions protégées sont l'inscription, la connexion, l'ajout
+au panier, la suppression du panier, la déconnexion et la validation d'une commande.
+
+## 7. Enregistrement d'une commande
+
+`acheter.php` exige un `id_client` valide et un panier non vide. Une requête `GET`
+affiche uniquement une page de confirmation. L'enregistrement réel est déclenché
+par un formulaire `POST` contenant un token CSRF valide.
+
+Le traitement utilise ensuite une transaction PDO :
 
 1. les lignes d'articles sont verrouillées avec `SELECT ... FOR UPDATE` ;
 2. le stock courant est comparé à la quantité demandée ;
@@ -149,7 +167,7 @@ une transaction PDO :
 En cas d'erreur, `rollBack()` annule les écritures réalisées pendant la transaction et
 le panier reste disponible pour une nouvelle tentative.
 
-## 7. Historique des commandes
+## 8. Historique des commandes
 
 `historique.php` est réservé au client connecté. Sa requête filtre les lignes avec
 `c.id_client = :id_client` et joint `articles` pour afficher le nom et le prix du
@@ -166,10 +184,33 @@ Le tableau présente :
 La colonne `envoi` vaut `FALSE` lors de l'achat et peut être passée manuellement à
 `TRUE` par le gestionnaire.
 
-## 8. Base de données
+## 9. Base de données
 
 Le script `database/computer_database.sql` crée les tables `articles`, `user` et
 `Commandes`. Les tables utilisant des relations sont en `InnoDB`.
+
+Structure de `articles` :
+
+| Colonne | Type | Rôle |
+|---|---|---|
+| `id_art` | `int` | Identifiant auto-incrémenté et clé primaire de l'article |
+| `nom` | `varchar(150)` | Nom de l'article |
+| `quantite` | `int` | Quantité disponible en stock, initialisée à `0` |
+| `prix` | `float` | Prix de l'article |
+| `url_photo` | `varchar(255)` | Chemin de l'image de l'article, facultatif |
+| `description` | `text` | Description de l'article, facultative |
+
+Structure de `user` :
+
+| Colonne | Type | Rôle |
+|---|---|---|
+| `id_user` | `int UNSIGNED` | Identifiant auto-incrémenté et clé primaire du client |
+| `nom` | `varchar(100)` | Nom du client |
+| `prenom` | `varchar(100)` | Prénom du client |
+| `adr` | `varchar(255)` | Adresse du client |
+| `num` | `varchar(30)` | Numéro de téléphone du client |
+| `mail` | `varchar(254)` | Adresse e-mail unique du client |
+| `mdp` | `varchar(255)` | Mot de passe stocké sous forme de hash |
 
 Structure de `Commandes` :
 
@@ -185,7 +226,7 @@ Chaque article d'un panier est enregistré sur une ligne distincte. La structure
 conserve ainsi tous les champs demandés tout en permettant une commande composée de
 plusieurs articles.
 
-## 9. Sécurité et intégrité
+## 10. Sécurité et intégrité
 
 - Les requêtes utilisent des paramètres PDO afin d'éviter la concaténation de valeurs
   fournies par l'utilisateur.
@@ -193,11 +234,15 @@ plusieurs articles.
 - Les mots de passe sont hachés avec `password_hash()` et vérifiés avec
   `password_verify()`.
 - L'identifiant de session est régénéré après une connexion réussie.
+- Les actions qui modifient l'état utilisent des formulaires `POST` protégés par des
+  tokens CSRF.
+- Deux tokens CSRF au maximum sont conservés par session, selon une file FIFO.
 - Les quantités et les identifiants sont validés côté serveur.
+- Une commande ne peut pas être créée par une simple requête `GET`.
 - La transaction de commande protège la cohérence entre `Commandes` et `articles`.
 - Les données de la page d'historique sont filtrées par le client connecté.
 
-## 10. Évolutions possibles
+## 11. Évolutions possibles
 
 - déplacer les identifiants MySQL de `bd.php` vers des variables d'environnement ;
 - ajouter une gestion dédiée des lignes d'une même commande si un identifiant de

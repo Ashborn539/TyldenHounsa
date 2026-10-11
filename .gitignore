@@ -14,6 +14,7 @@ Thumbs.db
 # Journaux et fichiers temporaires
 *.log
 *.tmp
+*.txt
 
 # Paramètres locaux de l'éditeur
 .vscode/*

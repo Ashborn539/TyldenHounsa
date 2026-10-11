@@ -1,4 +1,7 @@
 <?php
+session_start();
+require_once('./includes/php/csrf.php');
+$csrfToken = csrfToken();
 $error = $_GET['error'] ?? '';
 ?>
 <!DOCTYPE html>
@@ -19,6 +22,7 @@ $error = $_GET['error'] ?? '';
     <?php endif; ?>
 
     <form action="./includes/php/submit_formulaire.php" method="post">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
         <p>
             <label for="nom">Nom:</label>
             <input type="text" id="nom" name="n" required>

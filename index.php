@@ -1,5 +1,7 @@
 <?php
     session_start();
+    require_once('./includes/php/csrf.php');
+    $csrfToken = csrfToken();
 
     function formatUserName(string $name): string // Normalise l'affichage du nom utilisateur.
     {
@@ -69,6 +71,7 @@
                     <p class="quantity <?php echo $stockClass; ?> ">Quantité disponible : <?php echo $quantite ?></p>
                     <strong class="price"><?php echo $prix ?> €</strong>
                     <form action="article.php" method="post">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                         <input type="hidden" name="id_art" value="<?php echo $id; ?>">
                         <button class="btn-add-cart" type="submit">Voir article</button>
                     </form>

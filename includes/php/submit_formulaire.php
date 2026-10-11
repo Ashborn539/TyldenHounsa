@@ -2,6 +2,7 @@
 session_start();
 
 require_once ('./bd.php');
+require_once ('./csrf.php');
 
 function redirectToRegistration(string $message): void
 {
@@ -12,6 +13,8 @@ function redirectToRegistration(string $message): void
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirectToRegistration('Veuillez utiliser le formulaire d’inscription.');
 }
+
+requireValidCsrfToken();
 
 // Les valeurs reçues sont normalisées avant les contrôles métier.
 $nom = trim((string) ($_POST['n'] ?? ''));

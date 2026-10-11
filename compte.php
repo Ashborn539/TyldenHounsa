@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once ('./includes/php/csrf.php');
 
 if (empty($_SESSION['nom']) || empty($_SESSION['prenom'])) {
     header('Location: ./connexion.php');
@@ -14,6 +15,7 @@ function formatUserName(string $name): string
 
 $nomUtilisateur = htmlspecialchars(formatUserName((string) ($_SESSION['nom'] ?? '')), ENT_QUOTES, 'UTF-8');
 $prenomUtilisateur = htmlspecialchars(formatUserName((string) ($_SESSION['prenom'] ?? '')), ENT_QUOTES, 'UTF-8');
+$csrfToken = csrfToken();
 
 ?>
 <!DOCTYPE html>
@@ -31,6 +33,7 @@ $prenomUtilisateur = htmlspecialchars(formatUserName((string) ($_SESSION['prenom
     <p><a class="back-btn-account" href="./index.php">Retour à l'accueil</a></p>
     <p><a class="back-btn-account" href="./historique.php">Historique des commandes</a></p>
     <form class="disconnect-form" action="./includes/php/disconnect.php" method="post" novalidate>
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
         <button type="submit" class="disconnect-btn">Se deconncter</button>
     </form>
 </body>

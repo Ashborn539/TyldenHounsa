@@ -1,5 +1,8 @@
 <?php
 
+session_start();
+require_once('./includes/php/csrf.php');
+$csrfToken = csrfToken();
 $error = $_GET['error'] ?? '';
 ?>
 <!DOCTYPE html>
@@ -21,6 +24,7 @@ $error = $_GET['error'] ?? '';
     <?php endif; ?>
 
     <form action="./includes/php/submit_connexion.php" method="post">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
         <p>
             <label for="mail">Adresse e-mail :</label>
             <input type="email" id="mail" name="mail" autocomplete="email" required>
