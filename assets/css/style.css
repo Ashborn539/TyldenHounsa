@@ -222,6 +222,7 @@ body {
     background-color: var(--bg-card);
     cursor: pointer;
     transition: border-color 0.2s ease, transform 0.2s ease;
+    transform: translateY(-2px);
 }
 
 .card:hover {

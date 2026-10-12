@@ -2,6 +2,7 @@
 session_start();
 require_once ('./includes/php/bd.php');
 require_once ('./includes/php/csrf.php');
+require_once ('./includes/php/reservation.php');
 
 $id = filter_input(INPUT_POST, 'id_art', FILTER_VALIDATE_INT);
 $action = filter_input(INPUT_POST, 'action', FILTER_UNSAFE_RAW);
@@ -15,6 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Recherche commune à la consultation et à l'ajout au panier.
 if ($id !== false && $id !== null) {
     $bdd = getBD();
+    cleanupExpiredReservations($bdd);
     $requete = $bdd->prepare(
         'SELECT id_art, nom, quantite, prix, url_photo, description
         FROM articles
@@ -25,28 +27,41 @@ if ($id !== false && $id !== null) {
 } // Un identifiant absent ou invalide laisse la fiche vide.
 
 // Les contrôles de quantité et de stock ne concernent que l'ajout au panier.
-if (isset($article) && $action === 'add_to_cart') {
+if (is_array($article) && $action === 'add_to_cart') {
+    $idClient = (int) ($_SESSION['id_client'] ?? 0);
+    if ($idClient === 0) {
+        header('Location: connexion.php');
+        exit;
+    }
+
     $requestedQuantity = filter_input(INPUT_POST, 'quantite', FILTER_VALIDATE_INT);
     if ($requestedQuantity === false || $requestedQuantity === null || $requestedQuantity < 1) {
         header('Location: article.php');
         exit;
     }
 
-    if ($requestedQuantity > (int) $article['quantite']) {
-        $requestedQuantity = (int) $article['quantite'];
-    }
+    try {
+        $bdd->beginTransaction();
+        cleanupExpiredReservations($bdd);
+        $reservedQuantity = reserveArticle($bdd, $idClient, (int) $id, $requestedQuantity);
+        $bdd->commit();
 
-    if ($requestedQuantity > 0) {
         $_SESSION['panier'] ??= [];
-        $currentQuantity = (int) ($_SESSION['panier'][$id] ?? 0);
-        $_SESSION['panier'][$id] = min($currentQuantity + $requestedQuantity, (int) $article['quantite']);
+        $_SESSION['panier'][$id] = $reservedQuantity;
+    } catch (Throwable $exception) {
+        if (isset($bdd) && $bdd->inTransaction()) {
+            $bdd->rollBack();
+        }
+        error_log($exception->getMessage());
+        header('Location: article.php');
+        exit;
     }
 
     header('Location: panier.php');
     exit;
 }
 
-if (isset($article)) {
+if (is_array($article)) {
     $csrfToken = csrfToken();
     $id = (int) $article['id_art'];
     $nom = htmlspecialchars($article['nom'], ENT_QUOTES, 'UTF-8');

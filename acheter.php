@@ -2,11 +2,11 @@
 session_start();
 require_once ('./includes/php/bd.php');
 require_once ('./includes/php/csrf.php');
+require_once ('./includes/php/reservation.php');
 
 $erreur = '';
 $commandeEnregistree = false;
 $idClient = (int) ($_SESSION['id_client'] ?? 0);
-$panier = $_SESSION['panier'] ?? [];
 
 // Une commande doit être rattachée à un compte identifié.
 if ($idClient === 0) {
@@ -14,7 +14,11 @@ if ($idClient === 0) {
     exit;
 }
 
-if ($panier === []) {
+$bdd = getBD();
+cleanupExpiredReservations($bdd);
+$reservations = fetchActiveReservations($bdd, $idClient);
+
+if ($reservations === []) {
     header('Location: panier.php');
     exit;
 }
@@ -24,47 +28,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 try {
     // Les lignes de stock sont verrouillées jusqu'à la fin de la transaction.
-    $bdd = getBD();
     $bdd->beginTransaction();
+    cleanupExpiredReservations($bdd);
+    $reservations = lockActiveReservations($bdd, $idClient);
+    if ($reservations === []) {
+        throw new RuntimeException('Les réservations du panier ont expiré.');
+    }
 
-    $articleRequete = $bdd->prepare(
-        'SELECT id_art, quantite
-         FROM articles
-         WHERE id_art = :id_art
-         FOR UPDATE'
-    );
     $commandeRequete = $bdd->prepare(
         'INSERT INTO Commandes (id_art, id_client, quantite, envoi)
          VALUES (:id_art, :id_client, :quantite, FALSE)'
     );
-    $stockRequete = $bdd->prepare(
-        'UPDATE articles
-         SET quantite = quantite - :quantite
-         WHERE id_art = :id_art'
+    $confirmationRequete = $bdd->prepare(
+        "UPDATE reservations
+         SET statut = 'confirmee'
+         WHERE id_reservation = :id_reservation AND statut = 'active'"
     );
 
-    foreach ($panier as $idArtKey => $quantitePanier) {
-        $idArt = filter_var($idArtKey, FILTER_VALIDATE_INT);
-        $quantite = filter_var($quantitePanier, FILTER_VALIDATE_INT);
-        if ($idArt === false || $idArt < 0 || $quantite === false || $quantite < 1) {
-            throw new RuntimeException('Le panier contient une quantité invalide.');
-        }
-
-        $articleRequete->execute(['id_art' => $idArt]);
-        $article = $articleRequete->fetch();
-        // Le stock peut avoir changé depuis l'ajout au panier.
-        if (!$article || $quantite > (int) $article['quantite']) {
-            throw new RuntimeException('Le stock disponible a changé pour un article.');
-        }
+    foreach ($reservations as $reservation) {
+        $idArt = (int) $reservation['id_art'];
+        $quantite = (int) $reservation['quantite'];
 
         $commandeRequete->execute([
             'id_art' => $idArt,
             'id_client' => $idClient,
             'quantite' => $quantite,
         ]);
-        $stockRequete->execute([
-            'id_art' => $idArt,
-            'quantite' => $quantite,
+        $confirmationRequete->execute([
+            'id_reservation' => (int) $reservation['id_reservation'],
         ]);
     }
 

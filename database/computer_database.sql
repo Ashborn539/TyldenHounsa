@@ -27,6 +27,7 @@ SET time_zone = "+00:00";
 -- Structure de la table `articles`
 --
 
+DROP TABLE IF EXISTS `reservations`;
 DROP TABLE IF EXISTS `Commandes`;
 DROP TABLE IF EXISTS `articles`;
 CREATE TABLE IF NOT EXISTS `articles` (
@@ -55,6 +56,28 @@ CREATE TABLE IF NOT EXISTS `user` (
   PRIMARY KEY (`id_user`),
   UNIQUE KEY `mail` (`mail`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `reservations`
+--
+
+CREATE TABLE IF NOT EXISTS `reservations` (
+  `id_reservation` int NOT NULL AUTO_INCREMENT,
+  `id_client` int UNSIGNED NOT NULL,
+  `id_art` int NOT NULL,
+  `quantite` int NOT NULL,
+  `date_reservation` datetime NOT NULL,
+  `date_expiration` datetime NOT NULL,
+  `statut` enum('active','confirmee','expiree','annulee') NOT NULL DEFAULT 'active',
+  PRIMARY KEY (`id_reservation`),
+  KEY `idx_reservations_article_statut` (`id_art`,`statut`),
+  KEY `idx_reservations_client_statut` (`id_client`,`statut`),
+  KEY `idx_reservations_expiration` (`date_expiration`,`statut`),
+  CONSTRAINT `fk_reservations_article` FOREIGN KEY (`id_art`) REFERENCES `articles` (`id_art`),
+  CONSTRAINT `fk_reservations_client` FOREIGN KEY (`id_client`) REFERENCES `user` (`id_user`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 

@@ -2,46 +2,56 @@
 session_start();
 require_once ('./includes/php/bd.php');
 require_once ('./includes/php/csrf.php');
+require_once ('./includes/php/reservation.php');
 
 // La suppression est traitée côté serveur afin de rester cohérente avec la session.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['vider_panier'])) {
     requireValidCsrfToken();
+    $idClient = (int) ($_SESSION['id_client'] ?? 0);
+
+    if ($idClient > 0) {
+        $bdd = getBD();
+        $bdd->beginTransaction();
+        try {
+            cleanupExpiredReservations($bdd);
+            cancelClientReservations($bdd, $idClient);
+            $bdd->commit();
+        } catch (Throwable $exception) {
+            if ($bdd->inTransaction()) {
+                $bdd->rollBack();
+            }
+            error_log($exception->getMessage());
+        }
+    }
+
     unset($_SESSION['panier']);
     header('Location: panier.php');
     exit;
 }
 
-$panier = $_SESSION['panier'] ?? [];
+$idClient = (int) ($_SESSION['id_client'] ?? 0);
 $csrfToken = csrfToken();
 $articles = [];
 $total = 0.0;
 
-// Les détails et les prix sont toujours relus depuis la base, jamais depuis la session.
-if ($panier !== []) {
+// Les réservations actives sont la source de vérité du panier et du stock réservé.
+if ($idClient > 0) {
     $bdd = getBD();
-    $requete = $bdd->prepare(
-        'SELECT id_art, nom, quantite, prix
-         FROM articles
-         WHERE id_art = ?'
-    );
+    cleanupExpiredReservations($bdd);
+    $reservations = fetchActiveReservations($bdd, $idClient);
 
-    foreach ($panier as $id => $quantitePanier) {
-        $requete->execute([(int) $id]);
-        $article = $requete->fetch();
-        if (!$article) {
-            continue;
-        }
-
-        // Évite d'afficher une quantité supérieure au stock courant.
-        $quantite = min((int) $quantitePanier, (int) $article['quantite']);
-        if ($quantite < 1) {
-            continue;
-        }
-
-        $sousTotal = $quantite * (float) $article['prix'];
-        $article['quantite_panier'] = $quantite;
-        $article['sous_total'] = $sousTotal;
-        $articles[] = $article;
+    foreach ($reservations as $reservation) {
+        $expiration = new DateTimeImmutable(
+            (string) $reservation['date_expiration'],
+            new DateTimeZone('UTC')
+        );
+        $remainingSeconds = max(0, $expiration->getTimestamp() - time());
+        $quantite = (int) $reservation['quantite'];
+        $sousTotal = $quantite * (float) $reservation['prix'];
+        $reservation['quantite_panier'] = $quantite;
+        $reservation['sous_total'] = $sousTotal;
+        $reservation['secondes_restantes'] = $remainingSeconds;
+        $articles[] = $reservation;
         $total += $sousTotal;
     }
 }
@@ -69,7 +79,12 @@ if ($panier !== []) {
                     <div class="cart-item">
                         <div>
                             <h2><?php echo htmlspecialchars($article['nom'], ENT_QUOTES, 'UTF-8'); ?></h2>
-                            <p>Quantité : <?php echo $article['quantite_panier']; ?></p>
+                            <p>Quantité réservée : <?php echo $article['quantite_panier']; ?></p>
+                            <p class="reservation-countdown"
+                               data-expires-at="<?php echo htmlspecialchars((string) $article['date_expiration'], ENT_QUOTES, 'UTF-8'); ?>"
+                               data-stock-empty="<?php echo (int) $article['stock_disponible'] === 0 ? 'true' : 'false'; ?>">
+                                Réservation valable encore <?php echo (int) $article['secondes_restantes']; ?> seconde(s).
+                            </p>
                         </div>
                         <strong><?php echo number_format($article['sous_total'], 2, ',', ' '); ?> €</strong>
                     </div>

@@ -42,12 +42,14 @@ TyldenHounsa/
 |-- includes/php/
 |   |-- bd.php                        Connexion PDO à MySQL
 |   |-- csrf.php                      Génération et validation des tokens CSRF
+|   |-- reservation.php                Réservations, expiration et libération du stock
 |   |-- submit_connexion.php          Traitement de la connexion
 |   |-- submit_formulaire.php         Traitement de l'inscription
 |   `-- disconnect.php                Fermeture de session
 |
 `-- database/
-    `-- computer_database.sql         Schéma et données initiales
+    |-- computer_database.sql         Schéma et données initiales
+    `-- add_reservations.sql          Migration non destructive des réservations
 ```
 
 ## 3. Flux applicatif
@@ -70,7 +72,9 @@ flowchart TD
     Session --> Panier
     Panier -->|GET page de confirmation| Achat
     Achat -->|POST avec token CSRF| Achat
-    Achat -->|INSERT Commandes et UPDATE articles| Base
+    Achat -->|INSERT Commandes et confirmation reservations| Base
+    Fiche -->|Reservation transactionnelle| Base
+    Base -->|Stock libéré après expiration| Catalogue
     Achat -->|unset panier après succès| Session
     Compte --> Historique
     Historique -->|SELECT filtré par id_client| Base
@@ -97,14 +101,17 @@ placé dans l'URL.
 `article.php` récupère `id_art` depuis `$_POST`, puis recherche l'article avec une
 requête préparée. Le formulaire d'ajout renvoie l'identifiant, l'action et la quantité.
 
-Avant d'écrire dans la session, le serveur :
+Lors d'un ajout au panier, le serveur :
 
-1. vérifie que la quantité est un entier positif ;
-2. vérifie l'existence de l'article ;
-3. limite la quantité au stock courant ;
-4. additionne la quantité à celle déjà présente pour l'article.
+1. vérifie que le client est connecté ;
+2. vérifie que la quantité est un entier positif ;
+3. verrouille la ligne de l'article dans une transaction ;
+4. vérifie le stock disponible ;
+5. diminue le stock et crée ou met à jour une réservation active ;
+6. fixe une date d'expiration selon la durée configurée.
 
-Le panier utilise la structure suivante :
+La session conserve une copie d'affichage, mais la base est la source de vérité.
+Les réservations actives du client constituent le panier réel :
 
 ```php
 $_SESSION['panier'][id_art] = quantite;
@@ -112,12 +119,14 @@ $_SESSION['panier'][id_art] = quantite;
 
 ### Panier
 
-`panier.php` relit les informations des articles depuis MySQL. La session ne contient
-que les identifiants et les quantités ; elle ne fait pas autorité pour les prix ou le
-stock. La page calcule chaque sous-total ainsi que le total général.
+`panier.php` relit les réservations actives et les informations des articles depuis
+MySQL. La session ne fait pas autorité pour les quantités, les prix ou le stock. La
+page calcule chaque sous-total ainsi que le total général et affiche le temps restant
+de chaque réservation.
 
 Le bouton de suppression est traité par `panier.php` en `POST`. Il utilise
-`unset($_SESSION['panier'])`, puis redirige vers la même page.
+une transaction pour remettre les quantités réservées en stock, passe les
+réservations à l'état `annulee`, vide la session, puis redirige vers la même page.
 
 ## 5. Authentification et sessions
 
@@ -149,25 +158,44 @@ généré, le plus ancien est supprimé ; une page utilisant ce token reçoit al
 réponse HTTP `403`. Les actions protégées sont l'inscription, la connexion, l'ajout
 au panier, la suppression du panier, la déconnexion et la validation d'une commande.
 
-## 7. Enregistrement d'une commande
+## 7. Réservations temporaires
 
-`acheter.php` exige un `id_client` valide et un panier non vide. Une requête `GET`
-affiche uniquement une page de confirmation. L'enregistrement réel est déclenché
-par un formulaire `POST` contenant un token CSRF valide.
+`includes/php/reservation.php` centralise les opérations de réservation et de
+libération du stock. Les deux constantes suivantes permettent de modifier les durées
+sans changer les traitements :
+
+- `CART_RESERVATION_DURATION_SECONDS` : durée globale d'une réservation dans le panier ;
+- `LAST_STOCK_RESERVATION_DURATION_SECONDS` : durée appliquée lorsque la réservation
+  fait tomber le stock disponible à zéro.
+
+Les deux valeurs sont exprimées en secondes. Par défaut, la durée globale est de
+quinze minutes et la durée des derniers exemplaires est de cinq minutes.
+Les dates de réservation sont enregistrées et comparées en UTC, à la fois par PHP et
+par MySQL, afin d'éviter les expirations immédiates liées au fuseau horaire local.
+
+## 8. Enregistrement d'une commande
+
+`acheter.php` exige un `id_client` valide et au moins une réservation active. Une
+requête `GET` affiche uniquement une page de confirmation. L'enregistrement réel est
+déclenché par un formulaire `POST` contenant un token CSRF valide.
 
 Le traitement utilise ensuite une transaction PDO :
 
-1. les lignes d'articles sont verrouillées avec `SELECT ... FOR UPDATE` ;
-2. le stock courant est comparé à la quantité demandée ;
-3. chaque article est inséré dans `Commandes` avec `envoi = FALSE` ;
-4. le stock est décrémenté dans `articles` ;
+1. les réservations actives du client sont verrouillées avec `SELECT ... FOR UPDATE` ;
+2. chaque article est inséré dans `Commandes` avec `envoi = FALSE` ;
+3. les réservations sont passées à l'état `confirmee` ;
+4. le stock n'est pas décrémenté une seconde fois, car il l'a été lors de la réservation ;
 5. la transaction est validée avec `commit()` ;
-6. le panier est supprimé avec `unset()` uniquement après cette validation.
+6. le panier de session est supprimé après cette validation.
 
 En cas d'erreur, `rollBack()` annule les écritures réalisées pendant la transaction et
 le panier reste disponible pour une nouvelle tentative.
 
-## 8. Historique des commandes
+Les réservations dépassant leur date d'expiration sont nettoyées avant les opérations
+sur le catalogue, la fiche article, le panier et la commande. Leur quantité est
+remise dans `articles.quantite` et leur statut devient `expiree`.
+
+## 9. Historique des commandes
 
 `historique.php` est réservé au client connecté. Sa requête filtre les lignes avec
 `c.id_client = :id_client` et joint `articles` pour afficher le nom et le prix du
@@ -184,10 +212,12 @@ Le tableau présente :
 La colonne `envoi` vaut `FALSE` lors de l'achat et peut être passée manuellement à
 `TRUE` par le gestionnaire.
 
-## 9. Base de données
+## 10. Base de données
 
-Le script `database/computer_database.sql` crée les tables `articles`, `user` et
-`Commandes`. Les tables utilisant des relations sont en `InnoDB`.
+Le script `database/computer_database.sql` crée les tables `articles`, `user`,
+`reservations` et `Commandes`. Les tables utilisant des relations sont en `InnoDB`.
+Pour une base déjà installée, `database/add_reservations.sql` permet d'ajouter la
+table `reservations` sans supprimer les données existantes.
 
 Structure de `articles` :
 
@@ -212,6 +242,21 @@ Structure de `user` :
 | `mail` | `varchar(254)` | Adresse e-mail unique du client |
 | `mdp` | `varchar(255)` | Mot de passe stocké sous forme de hash |
 
+Structure de `reservations` :
+
+| Colonne | Type | Rôle |
+|---|---|---|
+| `id_reservation` | `int` | Identifiant auto-incrémenté de la réservation |
+| `id_client` | `int UNSIGNED` | Client qui possède la réservation |
+| `id_art` | `int` | Article réservé |
+| `quantite` | `int` | Quantité retirée temporairement du stock disponible |
+| `date_reservation` | `datetime` | Date et heure de création |
+| `date_expiration` | `datetime` | Date et heure auxquelles le stock est libéré |
+| `statut` | `enum` | `active`, `confirmee`, `expiree` ou `annulee` |
+
+La table possède des clés étrangères vers `user` et `articles`, ainsi que des index
+sur l'article, le client, le statut et la date d'expiration.
+
 Structure de `Commandes` :
 
 | Colonne | Rôle |
@@ -226,7 +271,7 @@ Chaque article d'un panier est enregistré sur une ligne distincte. La structure
 conserve ainsi tous les champs demandés tout en permettant une commande composée de
 plusieurs articles.
 
-## 10. Sécurité et intégrité
+## 11. Sécurité et intégrité
 
 - Les requêtes utilisent des paramètres PDO afin d'éviter la concaténation de valeurs
   fournies par l'utilisateur.
@@ -240,9 +285,11 @@ plusieurs articles.
 - Les quantités et les identifiants sont validés côté serveur.
 - Une commande ne peut pas être créée par une simple requête `GET`.
 - La transaction de commande protège la cohérence entre `Commandes` et `articles`.
+- La réservation verrouille l'article avec `FOR UPDATE` avant de diminuer le stock.
+- Une réservation expirée restitue sa quantité au stock dans une transaction.
 - Les données de la page d'historique sont filtrées par le client connecté.
 
-## 11. Évolutions possibles
+## 12. Évolutions possibles
 
 - déplacer les identifiants MySQL de `bd.php` vers des variables d'environnement ;
 - ajouter une gestion dédiée des lignes d'une même commande si un identifiant de

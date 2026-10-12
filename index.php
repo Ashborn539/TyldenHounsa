@@ -43,7 +43,9 @@
     <div class="products-container">
 
         <?php require_once('./includes/php/bd.php');
+        require_once('./includes/php/reservation.php');
         $bdd = getBD();
+        cleanupExpiredReservations($bdd);
         $rep = $bdd -> query(
             "SELECT id_art, nom, quantite, prix, url_photo, description
             FROM articles
