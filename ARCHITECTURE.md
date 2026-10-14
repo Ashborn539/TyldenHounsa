@@ -9,11 +9,15 @@ son panier entre deux requêtes.
 
 Technologies utilisées :
 
-- **PHP** pour le rendu serveur et la logique métier ;
+- **PHP 8.0 ou supérieur** pour le rendu serveur et la logique métier ;
 - **MySQL** pour les articles, les utilisateurs et les commandes ;
 - **PDO** pour les requêtes préparées et les transactions ;
 - **HTML/CSS** pour la structure et l'interface ;
 - **Sessions PHP** pour l'authentification et le panier.
+
+Le code reste volontairement limité aux fonctionnalités communes à PHP 8.0, PHP 8.1,
+PHP 8.2, PHP 8.3 et PHP 8.4. Les extensions `PDO_MySQL` et `mbstring` doivent être
+activées sur le serveur.
 
 Les commentaires placés dans les blocs PHP sont traités côté serveur. Ils documentent
 le code source et ne sont donc pas envoyés dans le HTML généré.

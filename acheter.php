@@ -8,12 +8,13 @@ $erreur = '';
 $commandeEnregistree = false;
 $idClient = (int) ($_SESSION['id_client'] ?? 0);
 
-// Une commande doit être rattachée à un compte identifié.
+# Une commande doit être rattachée à un compte identifié.
 if ($idClient === 0) {
     header('Location: connexion.php');
     exit;
 }
 
+# recuperation des resa actives du client
 $bdd = getBD();
 cleanupExpiredReservations($bdd);
 $reservations = fetchActiveReservations($bdd, $idClient);
@@ -27,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireValidCsrfToken();
 
 try {
-    // Les lignes de stock sont verrouillées jusqu'à la fin de la transaction.
+    # verouillage des lignes de stock jusqu'à la fin de la transaction.
     $bdd->beginTransaction();
     cleanupExpiredReservations($bdd);
     $reservations = lockActiveReservations($bdd, $idClient);
@@ -37,12 +38,12 @@ try {
 
     $commandeRequete = $bdd->prepare(
         'INSERT INTO Commandes (id_art, id_client, quantite, envoi)
-         VALUES (:id_art, :id_client, :quantite, FALSE)'
+        VALUES (:id_art, :id_client, :quantite, FALSE)'
     );
     $confirmationRequete = $bdd->prepare(
         "UPDATE reservations
-         SET statut = 'confirmee'
-         WHERE id_reservation = :id_reservation AND statut = 'active'"
+        SET statut = 'confirmee'
+        WHERE id_reservation = :id_reservation AND statut = 'active'"
     );
 
     foreach ($reservations as $reservation) {
@@ -59,7 +60,7 @@ try {
         ]);
     }
 
-    // Le panier n'est supprimé qu'après la validation des opérations SQL.
+    # Le panier n'est supprimé qu'après la validation des opérations SQL.
     $bdd->commit();
     unset($_SESSION['panier']);
     $commandeEnregistree = true;

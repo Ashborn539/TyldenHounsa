@@ -8,12 +8,12 @@ $id = filter_input(INPUT_POST, 'id_art', FILTER_VALIDATE_INT);
 $action = filter_input(INPUT_POST, 'action', FILTER_UNSAFE_RAW);
 $article = null;
 
-// Toutes les requêtes POST de cette page proviennent d'un formulaire protégé.
+# verification de la methode et du token
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireValidCsrfToken();
 }
 
-// Recherche commune à la consultation et à l'ajout au panier.
+# Recherche commune à la consultation et à l'ajout au panier.
 if ($id !== false && $id !== null) {
     $bdd = getBD();
     cleanupExpiredReservations($bdd);
@@ -24,17 +24,17 @@ if ($id !== false && $id !== null) {
     );
     $requete->execute([$id]);
     $article = $requete->fetch();
-} // Un identifiant absent ou invalide laisse la fiche vide.
+} # Un identifiant absent ou invalide laisse $article vide
 
-// Les contrôles de quantité et de stock ne concernent que l'ajout au panier.
+# Contrôles de quantité et de stock a l'ajout au panier.
 if (is_array($article) && $action === 'add_to_cart') {
+
     $idClient = (int) ($_SESSION['id_client'] ?? 0);
+    $requestedQuantity = filter_input(INPUT_POST, 'quantite', FILTER_VALIDATE_INT);
     if ($idClient === 0) {
         header('Location: connexion.php');
         exit;
     }
-
-    $requestedQuantity = filter_input(INPUT_POST, 'quantite', FILTER_VALIDATE_INT);
     if ($requestedQuantity === false || $requestedQuantity === null || $requestedQuantity < 1) {
         header('Location: article.php');
         exit;

@@ -4,7 +4,7 @@ require_once ('./includes/php/bd.php');
 require_once ('./includes/php/csrf.php');
 require_once ('./includes/php/reservation.php');
 
-// La suppression est traitée côté serveur afin de rester cohérente avec la session.
+# Suppression de la reservation quand le panier est vidé
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['vider_panier'])) {
     requireValidCsrfToken();
     $idClient = (int) ($_SESSION['id_client'] ?? 0);
@@ -34,17 +34,19 @@ $csrfToken = csrfToken();
 $articles = [];
 $total = 0.0;
 
-// Les réservations actives sont la source de vérité du panier et du stock réservé.
+# Parcours des articles réservé et donc dans le panier et cacule du temps restant
 if ($idClient > 0) {
     $bdd = getBD();
     cleanupExpiredReservations($bdd);
     $reservations = fetchActiveReservations($bdd, $idClient);
 
     foreach ($reservations as $reservation) {
+        # la date d'expiration est convertis et rendus constante
         $expiration = new DateTimeImmutable(
             (string) $reservation['date_expiration'],
             new DateTimeZone('UTC')
         );
+        # Calcule du temps restant
         $remainingSeconds = max(0, $expiration->getTimestamp() - time());
         $quantite = (int) $reservation['quantite'];
         $sousTotal = $quantite * (float) $reservation['prix'];
@@ -80,9 +82,7 @@ if ($idClient > 0) {
                         <div>
                             <h2><?php echo htmlspecialchars($article['nom'], ENT_QUOTES, 'UTF-8'); ?></h2>
                             <p>Quantité réservée : <?php echo $article['quantite_panier']; ?></p>
-                            <p class="reservation-countdown"
-                               data-expires-at="<?php echo htmlspecialchars((string) $article['date_expiration'], ENT_QUOTES, 'UTF-8'); ?>"
-                               data-stock-empty="<?php echo (int) $article['stock_disponible'] === 0 ? 'true' : 'false'; ?>">
+                            <p class="reservation-countdown">
                                 Réservation valable encore <?php echo (int) $article['secondes_restantes']; ?> seconde(s).
                             </p>
                         </div>
