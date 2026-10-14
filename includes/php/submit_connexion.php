@@ -5,6 +5,12 @@ session_start();
 require_once ('./bd.php');
 require_once ('./csrf.php');
 
+/**
+ * Redirige vers la page de connexion avec un message d'erreur.
+ *
+ * @param string $message Message à afficher à l'utilisateur.
+ * @return never
+ */
 function redirectToLogin(string $message): void
 {
     header('Location: ../../connexion.php?error=' . rawurlencode($message));

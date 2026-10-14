@@ -4,6 +4,12 @@ session_start();
 require_once ('./bd.php');
 require_once ('./csrf.php');
 
+/**
+ * Redirige vers la page d'inscription avec un message d'erreur.
+ *
+ * @param string $message Message à afficher à l'utilisateur.
+ * @return never
+ */
 function redirectToRegistration(string $message): void
 {
     header('Location: ../../nouveau.php?error=' . rawurlencode($message));

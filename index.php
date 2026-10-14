@@ -3,7 +3,13 @@
     require_once('./includes/php/csrf.php');
     $csrfToken = csrfToken();
 
-    function formatUserName(string $name): string // Normalise l'affichage du nom utilisateur.
+    /**
+     * Normalise un nom pour son affichage avec une première lettre en majuscule.
+     *
+     * @param string $name Nom à normaliser.
+     * @return string Nom normalisé.
+     */
+    function formatUserName(string $name): string
     {
         $name = mb_strtolower(trim($name), 'UTF-8');
         return mb_strtoupper(mb_substr($name, 0, 1, 'UTF-8'), 'UTF-8')

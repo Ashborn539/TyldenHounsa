@@ -6,6 +6,13 @@ if (empty($_SESSION['nom']) || empty($_SESSION['prenom'])) {
     header('Location: ./connexion.php');
     exit;
 }
+
+/**
+ * Normalise un nom pour son affichage avec une première lettre en majuscule.
+ *
+ * @param string $name Nom à normaliser.
+ * @return string Nom normalisé.
+ */
 function formatUserName(string $name): string
 {
     $name = mb_strtolower(trim($name), 'UTF-8');
